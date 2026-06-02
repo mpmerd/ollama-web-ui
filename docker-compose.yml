@@ -1,0 +1,66 @@
+services:
+  # ── Backend (FastAPI + Uvicorn) ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ollama-ui-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - MODEL_TIMEOUT_MINUTES=${MODEL_TIMEOUT_MINUTES:-15}
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-10m}
+      - AUTH_TOKEN=${AUTH_TOKEN:-}
+      - DATA_DIR=/data
+    volumes:
+      - ollama_ui_data:/data
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('localhost',8000); c.request('GET','/api/system/health'); assert c.getresponse().status==200"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # For Linux without host.docker.internal:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── Frontend (Nginx) ──
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ollama-ui-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    environment:
+      - BACKEND_URL=http://backend:8000
+
+  # ── (Optional) Ollama server inside Docker ──
+  # Uncomment to run Ollama inside Docker as well.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama-server
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_models:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=10m
+
+volumes:
+  ollama_ui_data:
+  # ollama_models:  # uncomment if using ollama container
