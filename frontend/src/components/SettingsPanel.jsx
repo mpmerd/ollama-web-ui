@@ -47,12 +47,12 @@ export default function SettingsPanel() {
 
           {/* Max Tokens */}
           <SettingSlider
-            label="Max Tokens"
+            label={`Max Tokens (model context: ${(settings._contextLength || 8192).toLocaleString()})`}
             value={settings.maxTokens}
             min={64}
-            max={8192}
+            max={settings._contextLength || 8192}
             step={64}
-            help="Maximum length of the generated response."
+            help="Maximum length of the generated response. Capped to the model's context length."
             onChange={(v) => updateSettings({ maxTokens: v })}
           />
 

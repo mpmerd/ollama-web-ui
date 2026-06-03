@@ -50,7 +50,10 @@ const useStore = create((set, get) => ({
       const models = await api.fetchModels()
       set({ models, modelsLoading: false })
       if (!get().selectedModel && models.length > 0) {
-        set({ selectedModel: models[0].name })
+        const first = models[0]
+        const ctxLen = first?.context_length || 8192
+        set({ selectedModel: first.name })
+        set((s) => ({ settings: { ...s.settings, _contextLength: ctxLen } }))
       }
       // Also fetch model status
       const status = await api.fetchModelStatus()
@@ -61,7 +64,17 @@ const useStore = create((set, get) => ({
   },
 
   selectModel: (name) => {
+    const { models } = get()
+    const model = models.find(m => m.name === name)
+    const ctxLen = model?.context_length || 8192
     set({ selectedModel: name })
+    // Update maxTokens ceiling to match model's context length
+    const currentMaxTokens = get().settings.maxTokens
+    if (currentMaxTokens > ctxLen) {
+      set({ settings: { ...get().settings, maxTokens: ctxLen } })
+    }
+    // Store contextLength separately for settings slider
+    set((s) => ({ settings: { ...s.settings, _contextLength: ctxLen } }))
   },
 
   // ── Conversations ──
@@ -79,6 +92,10 @@ const useStore = create((set, get) => ({
     set({ conversationLoading: true, activeConversationId: id, error: null })
     try {
       const conv = await api.getConversation(id)
+      // Update context length from model info
+      const { models } = get()
+      const modelInfo = models.find(m => m.name === conv.model)
+      const ctxLen = modelInfo?.context_length || 8192
       set({
         messages: conv.messages || [],
         conversationLoading: false,
@@ -88,6 +105,7 @@ const useStore = create((set, get) => ({
           systemPrompt: conv.system_prompt || '',
           temperature: conv.temperature ?? 0.7,
           maxTokens: conv.max_tokens ?? 2048,
+          _contextLength: ctxLen,
         },
         selectedModel: conv.model,
       })

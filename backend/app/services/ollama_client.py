@@ -18,6 +18,7 @@ class OllamaClient:
 
     def __init__(self):
         self._base = settings.ollama_host.rstrip("/")
+        self._ctx_cache: dict[str, int] = {}  # model_name -> context_length
 
     async def _request(self, method: str, path: str, json_body: dict = None,
                        timeout: httpx.Timeout = None) -> dict:
@@ -110,6 +111,42 @@ class OllamaClient:
             ])
         except Exception:
             return False
+
+    async def get_context_length(self, name: str) -> int:
+        """Get the num_ctx (context length) configured for a model.
+        Parses the PARAMETER num_ctx from the model's modelfile/parameters.
+        Uses cache to avoid repeated Ollama API calls.
+        Returns 2048 as a safe default if parsing fails."""
+        if name in self._ctx_cache:
+            return self._ctx_cache[name]
+        try:
+            info = await self.show_model(name)
+            params = info.get("parameters", "")
+            # Parse lines like "num_ctx    16384"
+            for line in params.split("\n"):
+                parts = line.strip().split()
+                if len(parts) >= 2 and parts[0] == "num_ctx":
+                    try:
+                        val = int(parts[1])
+                        self._ctx_cache[name] = val
+                        return val
+                    except ValueError:
+                        pass
+            # Fallback: try model_info
+            mi = info.get("model_info", {})
+            for key, val in mi.items():
+                if "context_length" in key.lower():
+                    try:
+                        ctx = int(val)
+                        self._ctx_cache[name] = ctx
+                        return ctx
+                    except (ValueError, TypeError):
+                        pass
+            self._ctx_cache[name] = 2048
+            return 2048
+        except Exception:
+            self._ctx_cache[name] = 2048
+            return 2048
 
     async def chat_stream(self, model: str, messages: list,
                           temperature: float = 0.7, max_tokens: int = 2048,

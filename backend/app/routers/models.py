@@ -19,7 +19,7 @@ def _get_deps():
 
 @router.get("")
 async def list_models():
-    """List all models available in Ollama, with load status."""
+    """List all models available in Ollama, with load status and context length."""
     client, mm = _get_deps()
     try:
         models_raw = await client.list_models()
@@ -31,6 +31,8 @@ async def list_models():
         name = m.get("name", "unknown")
         families = m.get("details", {}).get("families", [])
         supports_img = any(f in ["llava", "gemma4", "minicpm", "qwen2", "phi3"] for f in [x.lower() for x in families])
+        # Get context length (cached per model, non-blocking)
+        ctx_len = await client.get_context_length(name)
         info = {
             "name": name,
             "size": m.get("size", 0),
@@ -39,6 +41,7 @@ async def list_models():
             "modified_at": m.get("modified_at", ""),
             "details": m.get("details", {}),
             "supports_images": supports_img,
+            "context_length": ctx_len,
             **mm.get_status(name),
         }
         models.append(info)
