@@ -8,6 +8,7 @@ export default function ChatInput() {
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
   const { sendMessage, isStreaming, stopStreaming, selectedModel, activeConversationId,
     uploadedFiles, addFile, removeFile, clearFiles, models } = useStore()
 
@@ -41,13 +42,20 @@ export default function ChatInput() {
     const files = Array.from(e.target.files)
     if (!files.length) return
     setUploading(true)
+    setUploadError(null)
+    let errors = []
     for (const file of files) {
       try {
         const result = await api.uploadFile(file)
         addFile(result)
       } catch (err) {
+        errors.push(file.name)
         console.error('Upload failed:', err)
       }
+    }
+    if (errors.length > 0) {
+      setUploadError(`⚠️ No se pudo subir: ${errors.join(', ')}. ¿Imagen muy grande? Límite: 20MB.`)
+      setTimeout(() => setUploadError(null), 8000)
     }
     setUploading(false)
     e.target.value = ''
@@ -69,16 +77,34 @@ export default function ChatInput() {
   return (
     <div className="shrink-0 border-t border-surface-700 bg-surface-800/80 backdrop-blur-sm px-4 py-3">
       <div className="max-w-3xl mx-auto">
+        {/* Upload error toast */}
+        {uploadError && (
+          <div className="mb-2 px-3 py-2 bg-red-900/50 border border-red-500/50 rounded-lg text-red-300 text-xs animate-fadeIn flex items-center gap-2">
+            <span>⚠️</span>
+            <span>{uploadError}</span>
+            <button onClick={() => setUploadError(null)} className="ml-auto text-red-400 hover:text-red-200 font-bold">×</button>
+          </div>
+        )}
+
         {/* File previews */}
         {uploadedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {uploadedFiles.map((f, i) => (
-              <div key={i} className="flex items-center gap-1.5 bg-surface-700 border border-surface-600 rounded-lg px-2 py-1 text-xs">
-                <span className="text-gray-400">
+              <div key={i} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ${
+                f.type === 'image'
+                  ? 'bg-indigo-900/60 border border-indigo-500/50'
+                  : 'bg-surface-700 border border-surface-600'
+              }`}>
+                <span className="text-base">
                   {f.type === 'image' ? '🖼️' : '📄'}
                 </span>
-                <span className="text-gray-300 max-w-[150px] truncate">{f.filename}</span>
-                <button onClick={() => removeFile(i)} className="text-gray-500 hover:text-red-400 ml-1">
+                <div className="flex flex-col">
+                  <span className="text-gray-200 max-w-[150px] truncate font-medium">{f.filename}</span>
+                  {f.type === 'image' && (
+                    <span className="text-indigo-400 text-[10px]">🟢 Enviada al modelo</span>
+                  )}
+                </div>
+                <button onClick={() => removeFile(i)} className="text-gray-500 hover:text-red-400 ml-1 text-sm" title="Remove">
                   ×
                 </button>
               </div>

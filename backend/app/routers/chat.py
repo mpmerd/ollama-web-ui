@@ -112,6 +112,24 @@ async def send_message(req: ChatRequest):
         if file_contexts:
             message_text = message_text + "\n\n" + "\n\n".join(file_contexts)
 
+    # ── Build images list from uploaded files (extract data_urls, strip prefix for Ollama) ──
+    # Ollama API expects bare base64, not the full data URL (no "data:image/...;base64," prefix)
+    images_list = []
+    # Also strip prefix from any images sent directly
+    for img in (req.images or []):
+        if img and "," in img:
+            images_list.append(img.split(",", 1)[1])
+        else:
+            images_list.append(img)
+    if req.files:
+        for f in req.files:
+            if f.data_url and f.type == "image":
+                if "," in f.data_url:
+                    images_list.append(f.data_url.split(",", 1)[1])
+                else:
+                    images_list.append(f.data_url)
+                logger.info(f"Image added to prompt: {f.filename} ({len(images_list[-1])} chars base64)")
+
     # ── Save user message ──
     user_msg_id = str(uuid.uuid4())
     await save_message(user_msg_id, conv_id, "user", message_text, req.images)
@@ -192,7 +210,7 @@ async def send_message(req: ChatRequest):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 system_prompt=system_prompt if not existing else "",
-                images=req.images,
+                images=images_list,
             ):
                 if chunk['type'] == 'token':
                     full_response += chunk['content']

@@ -1,5 +1,10 @@
 # Ollama Web UI 🤖
 
+> **ChatGPT-style web interface for local Ollama models** — with smart memory
+> management, image/vision support, and multi-model conversations.
+
+**Stack:** Backend en **Python (FastAPI + Uvicorn)** · Frontend en **JavaScript (React + Vite + Tailwind CSS)** · Persistencia en **SQLite** · Proxy con **Nginx** · Orquestación con **Docker Compose**
+
 Interfaz web moderna tipo ChatGPT para interactuar con modelos de lenguaje
 locales **Ollama**, con **gestión inteligente de memoria**: los modelos solo
 se cargan bajo demanda y se descargan automáticamente tras inactividad.
@@ -21,8 +26,8 @@ se descargan automáticamente.
 - **Cambio inteligente de modelo**: al seleccionar otro modelo, descarga el anterior si no tiene conversaciones activas para liberar RAM inmediatamente
 - **Límite de modelos simultáneos** configurable (1-3, default 2): protege RAM en entornos multi-usuario
 - **Soporte para modelos "thinking"** (Gemma4, DeepSeek R1): muestra 🧠 cadena de razonamiento interna antes de la respuesta
+- **Soporte de imágenes**: 🖼️ solo habilitado si el modelo lo soporta (gemma4, qwen25, llava). Imágenes convertidas a base64 y enviadas directamente a Ollama (formato raw, sin prefijo data URL). Compatible con modelos "encoder-free" como Gemma 4 12B Unified.
 - **Subida de archivos**: 📎 txt, md, csv, py, json, html, log, pdf — contenido inyectado en el prompt para resúmenes
-- **Soporte de imágenes**: 🖼️ solo habilitado si el modelo lo soporta (gemma4, qwen25, llava)
 - **Monitor de recursos**: RAM con barra de uso + alertas visuales (+ VRAM GPU NVIDIA)
 - **Forzar unload** manual desde la UI
 - **Múltiples conversaciones** con diferentes modelos simultáneamente
@@ -202,6 +207,15 @@ npm install && npm run dev
 | `error` | Error |
 
 ## 🛠️ Bugs conocidos y soluciones
+
+### 🔧 Arreglos recientes (2026-06-04)
+
+**Soporte de imágenes (visión) — corregido:**
+1. **Las imágenes no llegaban al modelo** — el backend solo mostraba `[Image attached: foto.jpg]` pero nunca pasaba el base64 a Ollama. Ahora extrae los `data_url` de los archivos subidos y los inyecta como `images` en la llamada a Ollama.
+2. **Ollama rechazaba imágenes con 400/500** — el backend enviaba el data URL completo (`data:image/jpeg;base64,...`) pero Ollama espera base64 puro. Ahora se recorta el prefijo antes de enviar.
+3. **Imágenes >1MB rechazadas por Nginx** — límite por defecto de 1MB causaba error 413 silencioso. Aumentado a `client_max_body_size 20M`.
+4. **Sin feedback visual al subir imagen** — chips de preview ahora con borde índigo, fondo violeta y "🟢 Enviada al modelo". Toast rojo visible cuando falla el upload.
+5. **Soporte para modelos encoder-free (Gemma 4 12B)** — estos modelos necesitan un proyector `mmproj` separado. Ollama ≥0.30.5 requerido. Ver [modelo-gemma4-12b.md](../modelo-gemma4-12b.md) para instrucciones.
 
 ### "Cannot reach Ollama"
 - Verifica que Ollama está corriendo: `ollama serve`
